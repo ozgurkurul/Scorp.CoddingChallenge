@@ -3,7 +3,7 @@ using System.Text;
 
 internal class Program
 {
-    private static async Task Main(string[] args)
+    private static void Main(string[] args)
     {
         var examples = new[]
         {
@@ -14,18 +14,17 @@ internal class Program
         foreach (var input in examples)
         {
             Console.WriteLine($"Input : {input}");
-            var output = await CodingChallenge(input);
-            Console.WriteLine($"Output: {output}");
+            Console.WriteLine($"Output: {CodingChallenge(input)}");
             Console.WriteLine();
         }
     }
 
-    public static async Task<string> CodingChallenge(string str)
+    public static string CodingChallenge(string str)
     {
         var (balanceEntries, paymentRequests) = PaymentParser.Parse(str);
 
         var paymentProcessor = new PaymentProcessor(new DefaultCurrencyService());
-        var (balances, paidByCurrency) = await paymentProcessor.Process(balanceEntries, paymentRequests);
+        var (balances, paidByCurrency) = paymentProcessor.Process(balanceEntries, paymentRequests);
 
         return PaymentFormatter.Format(balances, paidByCurrency);
     }
@@ -81,7 +80,7 @@ internal class Program
             _currencyService = currencyService;
         }
 
-        public async Task<(List<AccountBalance> balances, ConcurrentBag<Payment> paidByCurrency)> Process(IEnumerable<BalanceEntry> balanceEntries, IEnumerable<PaymentRequest> paymentRequests)
+        public (List<AccountBalance> balances, ConcurrentBag<Payment> paidByCurrency) Process(IEnumerable<BalanceEntry> balanceEntries, IEnumerable<PaymentRequest> paymentRequests)
         {
             var accountBalances = new Dictionary<string, AccountBalance>(StringComparer.Ordinal);
             foreach (var entry in balanceEntries)
@@ -137,13 +136,10 @@ internal class Program
             var paymentItems = new List<string>();
             foreach (var balance in sortedAsCurrencies)
             {
-                if (paymentsByCurrency.TryGetValue(balance.Currency, out var payments))
-                {
-                    foreach (var p in payments)
-                    {
-                        paymentItems.Add($"{p.StreamerId}:{p.Currency}:{p.ActualAmount}");
-                    }
-                }
+                if (!paymentsByCurrency.TryGetValue(balance.Currency, out var payments)) continue;
+
+                foreach (var p in payments)
+                    paymentItems.Add($"{p.StreamerId}:{p.Currency}:{p.ActualAmount}");
             }
 
             var paymentsPart = string.Join("|", paymentItems);
