@@ -26,9 +26,7 @@
 * Teknoloji Bağımsız Düşünme: Sana .NET sormayacaklar ama sen cevaplarını mimari araçlarla vereceksin. Gelen yükü nasıl dengelersin? Veritabanında darboğaz oluşursa ne yaparsın? (Burada PostgreSQL sharding, Read-Replica mantığı veya Redis ile In-Memory caching devreye girmeli).
 * Asenkron İletişim: Dağıtık sistemlerde servislerin birbiriyle konuşması kritik. Event-driven mimariler, Kafka gibi message broker'ların veri kaybını (data loss) önlemedeki rolü ve gRPC gibi yüksek performanslı protokollerin nerelerde tercih edileceği üzerine sağlam tartışmalar dönebilir.
 
-### Scorp Assessment
-[Soru](Assesment/Question.md)
-[Cevap](Assesment/Program.cs)
+### [Scorp Assessment](Assesment/Question.md)
 
 ### Konular
 * [Big O Notasyonunu İçeriği](BigONotation.MD)
