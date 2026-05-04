@@ -1,0 +1,8 @@
+### Kültürel Uyum (VP Culture Fit Interview)
+Scorp gibi "hyper-growth" (aşırı hızlı büyüyen) startup'larda yetenek kadar, kaotik ortamlara uyum sağlama, inisiyatif alma ve takım içi iletişim becerileri test edilir. Mülakatçı (genellikle bir VP veya Director), "Bu kişiyle gecenin 3'ünde sunucu çöktüğünde veya ürün vizyonu aniden değiştiğinde yan yana çalışmak ister miyim?" sorusunun cevabını arar.
+
+Bu aşamada şu üç temayı kendi tecrübelerinle destekleyerek sunman kritik:
+
+*   **Sahiplenme (Ownership) ve Ölçeklendirme:** Startup'lar uçtan uca ürün geliştiren mühendisleri sever. Sadece size verilen task'ı yapmak yerine, darboğazları tespit edip sistemi iyileştirdiğiniz anıları duymak isterler. Örneğin, geçmişte monolitik servisleri .NET 8 mikroservis mimarisine ve konteyner yapısına taşırken yaşadığın sancıları, bu altyapı değişikliğini ekibe nasıl kabul ettirdiğini ve süreci nasıl yönettiğini anlatmak harika bir "Ownership" örneğidir.
+*   **Çeviklik (Agile) ve Çatışma Yönetimi:** Hızlı büyüyen ekiplerde teknik fikir ayrılıkları kaçınılmazdır. Bir ekibe liderlik ederken teknik bir kararda ekiple düştüğünüz bir anlaşmazlığı ve verilerle (metriklerle) ortak bir noktada nasıl buluştuğunuzu STAR (Situation, Task, Action, Result) metoduyla kurgula.
+*   **Tutku ve Sürekli Öğrenme:** Mesai saatleri dışında teknolojiyle kurduğun bağ çok değerlidir. Kendi ihtiyaçların için geliştirdiğin Wheeler/TrackMeInTheRoad gibi React Native ve PostgreSQL tabanlı IoT projelerinden veya evindeki yerel Linux, Docker, Traefik altyapından bahsetmek; mühendisliği sadece bir iş değil, bir problem çözme tutkusu olarak gördüğünü kanıtlar.
