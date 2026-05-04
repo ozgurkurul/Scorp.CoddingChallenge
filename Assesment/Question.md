@@ -156,4 +156,4 @@ Function takes in the existing balance and payment requests to be processed as t
 * **Input:** `"USD:276|EUR:300|TRY:1100&streamer7:USD:120|streamer2:EUR:112|streamer55:USD:200|streamer4:TRY:1000|streamer5:TRY:375"`
 * **Output:** `"EUR:190|TRY:726|USD:158&streamer2:EUR:110|streamer5:TRY:374|streamer7:USD:118"`
 
-[**Coding Challenge Solution**](Scorp.CoddingChallenge/Program.cs)
+[**Coding Challenge Solution**](Program.cs)
