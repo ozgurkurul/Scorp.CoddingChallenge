@@ -23,7 +23,9 @@ internal class Program
     {
         var (balanceEntries, paymentRequests) = PaymentParser.Parse(str);
 
-        var paymentProcessor = new PaymentProcessor(new DefaultCurrencyService());
+        var currencyHandlers = new List<ICurrencyHandler>() { new TryCurrencyHandler(), new EurCurrencyHandler(), new UsdCurrencyHandler(), new BtcCurrencyHandler() };
+        var paymentProcessor = new PaymentProcessor(new DefaultCurrencyService(currencyHandlers));
+
         var (balances, paidByCurrency) = paymentProcessor.Process(balanceEntries, paymentRequests);
 
         return PaymentFormatter.Format(balances, paidByCurrency);
@@ -152,24 +154,129 @@ internal class Program
     }
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+    // 1. Her currency için ortak sözleşme
+    public interface ICurrencyHandler
+    {
+        string Code { get; }
+        int CalculateFee(int requestedAmount);
+    }
+
+    // 2. Sabit fee'li currency'ler için base class (DRY)
+    public abstract class FixedFeeCurrencyHandler : ICurrencyHandler
+    {
+        public abstract string Code { get; }
+        protected abstract int FixedFee { get; }
+
+        public int CalculateFee(int requestedAmount) => FixedFee;
+    }
+
+    // 3. Concrete handler'lar
+    public class TryCurrencyHandler : FixedFeeCurrencyHandler
+    {
+        public override string Code => "TRY";
+        protected override int FixedFee => 1;
+    }
+
+    public class EurCurrencyHandler : FixedFeeCurrencyHandler
+    {
+        public override string Code => "EUR";
+        protected override int FixedFee => 2;
+    }
+
+    public class UsdCurrencyHandler : FixedFeeCurrencyHandler
+    {
+        public override string Code => "USD";
+        protected override int FixedFee => 2;
+    }
+
+    // 4. Dinamik fee'li currency için ayrı sınıf
+    public class BtcCurrencyHandler : ICurrencyHandler
+    {
+        public string Code => "BTC";
+
+        public int CalculateFee(int requestedAmount)
+        {
+            var calculated = (int)(requestedAmount * 0.01);
+            return Math.Max(calculated, 5);// Gerçek mantık: %1 fee, minimum 5
+        }
+    }
+
+
     public interface ICurrencyService
     {
         public bool IsSupported(string code);
         int CalculateFee(string code, int requestedAmount);
     }
-
     public class DefaultCurrencyService : ICurrencyService
     {
-        private static readonly Dictionary<string, Currency> _supported = new(StringComparer.Ordinal)
-        {
-            ["TRY"] = new Currency("TRY", 1),
-            ["EUR"] = new Currency("EUR", 2),
-            ["USD"] = new Currency("USD", 2),
-        };
+        private readonly Dictionary<string, ICurrencyHandler> _handlers;
 
-        public bool IsSupported(string code) => _supported.ContainsKey(code);
-        public int CalculateFee(string code, int requestedAmount) => _supported[code].ProcessingFee;
+        public DefaultCurrencyService(IEnumerable<ICurrencyHandler> handlers)
+        {
+            _handlers = handlers.ToDictionary(h => h.Code, StringComparer.Ordinal);
+        }
+
+        public bool IsSupported(string code) => _handlers.ContainsKey(code);
+        public int CalculateFee(string code, int requestedAmount) => _handlers[code].CalculateFee(requestedAmount);
     }
+
+
+
+
+
+
+
+    //public class DefaultCurrencyService : ICurrencyService
+    //{
+    //    private static readonly Dictionary<string, Currency> _supported = new(StringComparer.Ordinal)
+    //    {
+    //        ["TRY"] = new Currency("TRY", 1),
+    //        ["EUR"] = new Currency("EUR", 2),
+    //        ["USD"] = new Currency("USD", 2)
+    //    };
+
+    //    public bool IsSupported(string code) => _supported.ContainsKey(code);
+    //    public int CalculateFee(string code, int requestedAmount) => _supported[code].ProcessingFee;
+    //}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     public class AccountBalance
     {
