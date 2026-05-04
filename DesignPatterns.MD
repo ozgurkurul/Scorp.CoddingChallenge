@@ -78,3 +78,36 @@ Bu soru geldiğinde cevabını iki ana kategoriye ayırarak ve doğrudan **çöz
 Açıklamanı bitirirken şu cümleyi kurmak, seni gerçek bir "Senior" yapar:
 *"Bununla birlikte, tasarımdaki en büyük felsefem **YAGNI (You Aren't Gonna Need It)** kuralıdır. Bir problemi en basit if-else bloğu ile çözmek o an için yeterli ve okunaklıysa, sırf havalı dursun diye oraya bir Factory veya Strategy deseni koymam. 'Over-engineering' (aşırı mühendislik) yapmaktan kaçınırım; desenleri ancak kodun gelecekteki değişim maliyeti yüksekse sisteme dahil ederim."*
 
+
+
+### "Strategy ve Factory desenleri arasındaki fark nedir?"
+
+Bu ikisi birbirine çok karıştırılır çünkü ikisi de kodda `if-else` veya `switch-case` bloklarını yok etmek için kullanılır ve ikisi de arayüzler (Interface) üzerinden çalışır.
+
+#### 1. "Niyet" (Intent) Farkı
+Masada kuracağın ilk cümle şu olmalıdır: 
+*"İkisi de if-else bloklarını temizlese de aralarındaki temel fark niyetlerindedir. **Factory nesne yaratmakla (Creational), Strategy ise nesnenin nasıl davranacağıyla (Behavioral) ilgilenir.***"
+
+*   **Factory'nin Sorumluluğu (Kim?):** "Bana hangi nesnenin lazım olduğuna kim karar verecek ve onu kim üretecek?" sorusunu cevaplar. Kodun içinde `new` anahtar kelimesini gizler.
+*   **Strategy'nin Sorumluluğu (Nasıl?):** "Elimdeki bu nesne, kendisine verilen işi hangi algoritmayla/yöntemle yapacak?" sorusunu cevaplar. Çalışma zamanında (runtime) bir işin yapılış şeklini değiştirmeyi sağlar.
+
+#### 2. Gerçek Hayat Senaryosu Üzerinden Açıklama
+Teoriyi verdikten sonra hemen kendi tecrübeni masaya koyarak somutlaştır:
+
+*"Bunu e-ticaret ödeme (checkout) altyapısı üzerinden şöyle açıklayabilirim:*
+*Sistemde kullanıcının seçebileceği 3 ödeme yöntemi var: Kredi Kartı, Kripto ve Havale. Her birinin bankaya bağlanma ve komisyon hesaplama algoritması tamamen farklı.*
+
+1.  *Önce, bu algoritmaların her birini ayrı sınıflara yazarım (`CreditCardStrategy`, `CryptoStrategy`). Bu sınıfların hepsi `IPaymentStrategy` arayüzünden türer. Bu sayede ana ödeme metodum, içerde hangi matematiğin döndüğünü bilmez. **(Bu Strategy desenidir. İşin NASIL yapılacağını soyutladım).***
+2.  *Ancak, kullanıcının ekrandan 'Kripto' seçtiğini anladığım anda, ana kodumun içine `if (type == "Crypto") new CryptoStrategy()` yazarsam Strategy kullanmamın bir anlamı kalmaz, kod yine kirlenir. İşte burada **Factory** devreye girer. `PaymentFactory.Create(type)` çağrısı yaparım. Factory bana doğru strateji nesnesini üretip geri döner. **(Bu Factory desenidir. KİMİN üretileceğini soyutladım).***"
+
+#### 3. Senior/Lead Dokunuşu (Altın Kural)
+Bu örnekten sonra mülakatı tamamen domine edecek o "Lead Engineer" cümlesini kurmalısın:
+
+*"Özetle; gerçek dünya projelerinde, özellikle dağıtık sistemlerde bu iki desen neredeyse her zaman **birlikte çalışır**. Factory, doğru Strategy'yi yaratmakla görevlidir. Hatta günümüzde .NET ekosisteminde özel bir Factory sınıfı yazmak yerine, **Dependency Injection (DI) konteynerinin kendisini bir Factory gibi kullanarak** (örneğin `IEnumerable<IPaymentStrategy>` enjekte ederek) çalışma zamanında doğru stratejiyi çözümlüyoruz (resolve ediyoruz)."*
+
+#### Bu Savunmanın Mülakatçıdaki Etkisi
+Mülakatçı bu cevabı duyduğunda senin hakkında şu notları düşecektir:
+1.  Paternleri kitaplardan değil, gerçek üretim (production) kodundan öğrenmiş.
+2.  Modern framework'lerin (Dependency Injection) paternleri nasıl evrimleştirdiğini biliyor.
+3.  "Separation of Concerns" (Sorumlulukların Ayrılığı) prensibini kod seviyesinde çok iyi anlıyor.
+
