@@ -96,7 +96,7 @@ internal class Program
                 .GroupBy(p => p.Currency);
 
             var paidPayments = new ConcurrentBag<Payment>();
-            Parallel.ForEach(grouped, new ParallelOptions() { MaxDegreeOfParallelism = Environment.ProcessorCount }, async (group) =>
+            Parallel.ForEach(grouped, new ParallelOptions() { MaxDegreeOfParallelism = Environment.ProcessorCount }, (group) =>
             {
                 var currency = group.Key;
                 if (!accountBalances.ContainsKey(currency)) return;
@@ -130,12 +130,19 @@ internal class Program
 
             var balancePart = string.Join("|", sortedAsCurrencies.Select(c => $"{c.Currency}:{c.CurrentAmount}"));
 
+            var paymentsByCurrency = paidByCurrency
+                .GroupBy(p => p.Currency)
+                .ToDictionary(g => g.Key, g => g.OrderBy(o => o.ActualAmount).ToList());
+
             var paymentItems = new List<string>();
             foreach (var balance in sortedAsCurrencies)
             {
-                foreach (var p in paidByCurrency.OrderBy(q => q.ActualAmount).Where(c => c.Currency == balance.Currency))
+                if (paymentsByCurrency.TryGetValue(balance.Currency, out var payments))
                 {
-                    paymentItems.Add($"{p.StreamerId}:{p.Currency}:{p.ActualAmount}");
+                    foreach (var p in payments)
+                    {
+                        paymentItems.Add($"{p.StreamerId}:{p.Currency}:{p.ActualAmount}");
+                    }
                 }
             }
 

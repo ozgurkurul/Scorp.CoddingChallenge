@@ -17,7 +17,6 @@
 * Node.js
 * React, angular, next.js etc frontend technologies
 * concurrency problems and redis lock
-* patterns
 * what is the Task method? 
 * Mesaj Kuyruk yapılarında dlq
 
