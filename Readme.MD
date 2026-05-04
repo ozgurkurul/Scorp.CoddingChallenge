@@ -1,6 +1,11 @@
-## Mülakat İçerikleri 
+## Özgür Mülakat Dosyası
 
-### Konu Başlıkları
+* [Kendim Hakkında](AboutMySelf.MD)
+* [Kendime ait anlatılarım](MySelf.MD)
+* [CV](Özgür Kurul - CV.pdf)
+* [İş İlanı](JobDetail.MD)
+
+### Konu Başlık notlarım
 * Space-Time Trade off (Hafıza - Zaman Ödünleşimi)
 * .NET Veri Yapıları
 * Stable and scalable projects
@@ -26,7 +31,9 @@
 * Teknoloji Bağımsız Düşünme: Sana .NET sormayacaklar ama sen cevaplarını mimari araçlarla vereceksin. Gelen yükü nasıl dengelersin? Veritabanında darboğaz oluşursa ne yaparsın? (Burada PostgreSQL sharding, Read-Replica mantığı veya Redis ile In-Memory caching devreye girmeli).
 * Asenkron İletişim: Dağıtık sistemlerde servislerin birbiriyle konuşması kritik. Event-driven mimariler, Kafka gibi message broker'ların veri kaybını (data loss) önlemedeki rolü ve gRPC gibi yüksek performanslı protokollerin nerelerde tercih edileceği üzerine sağlam tartışmalar dönebilir.
 
-### [Scorp Assessment](Assesment/Question.md)
+### Scorp Mülakatı
+* [İş İlanı](JobDetail.MD)
+* [Scorp Assessment](Assesment/Question.md)
 
 ### Konular
 * [Big O Notasyonunu İçeriği](BigONotation.MD)
