@@ -1,8 +1,9 @@
-﻿using System.Text;
+﻿using System.Collections.Concurrent;
+using System.Text;
 
 internal class Program
 {
-    private static void Main(string[] args)
+    private static async Task Main(string[] args)
     {
         var examples = new[]
         {
@@ -12,16 +13,20 @@ internal class Program
 
         foreach (var input in examples)
         {
-            Console.WriteLine($"Input : {input}"); 
-            Console.WriteLine($"Output: {CodingChallenge(input)}");
+            Console.WriteLine($"Input : {input}");
+            var output = await CodingChallenge(input);
+            Console.WriteLine($"Output: {output}");
             Console.WriteLine();
         }
     }
 
-    public static string CodingChallenge(string str)
+    public static async Task<string> CodingChallenge(string str)
     {
         var (balanceEntries, paymentRequests) = PaymentParser.Parse(str);
-        var (balances, paidByCurrency) = PaymentProcessor.Process(balanceEntries, paymentRequests);
+
+        var paymentProcessor = new PaymentProcessor(new DefaultCurrencyService());
+        var (balances, paidByCurrency) = await paymentProcessor.Process(balanceEntries, paymentRequests);
+
         return PaymentFormatter.Format(balances, paidByCurrency);
     }
 
@@ -66,65 +71,69 @@ internal class Program
         }
     }
 
-    public static class PaymentProcessor
+    public class PaymentProcessor
     {
-        public static (Dictionary<string, int> balances, Dictionary<string, List<Payment>> paidByCurrency) Process(IEnumerable<BalanceEntry> balanceEntries, IEnumerable<PaymentRequest> paymentRequests)
+
+        private readonly ICurrencyService _currencyService;
+
+        public PaymentProcessor(ICurrencyService currencyService)
         {
-            var balances = new Dictionary<string, int>(StringComparer.Ordinal);
+            _currencyService = currencyService;
+        }
+
+        public async Task<(List<AccountBalance> balances, ConcurrentBag<Payment> paidByCurrency)> Process(IEnumerable<BalanceEntry> balanceEntries, IEnumerable<PaymentRequest> paymentRequests)
+        {
+            var accountBalances = new Dictionary<string, AccountBalance>(StringComparer.Ordinal);
             foreach (var entry in balanceEntries)
             {
-                if (!Currencies.IsSupported(entry.Currency)) continue;
-                balances[entry.Currency] = entry.Amount;
+                if (!_currencyService.IsSupported(entry.Currency)) continue;
+
+                accountBalances.TryAdd(entry.Currency, new AccountBalance(entry.Currency, entry.Amount));
             }
 
-            var paidByCurrency = new Dictionary<string, List<Payment>>(StringComparer.Ordinal);
-
             var grouped = paymentRequests
-                .Where(p => Currencies.IsSupported(p.Currency))
+                .Where(p => _currencyService.IsSupported(p.Currency))
                 .GroupBy(p => p.Currency);
 
-            foreach (var group in grouped)
+            var paidPayments = new ConcurrentBag<Payment>();
+            Parallel.ForEach(grouped, new ParallelOptions() { MaxDegreeOfParallelism = Environment.ProcessorCount }, async (group) =>
             {
                 var currency = group.Key;
-                if (!balances.ContainsKey(currency)) continue;
+                if (!accountBalances.ContainsKey(currency)) return;
 
-                var fee = Currencies.Get(currency).ProcessingFee;
+                if (!accountBalances.TryGetValue(currency, out var balances)) return;
 
                 var eligible = group
-                    .Select(p => new Payment(p.StreamerId, p.Currency, p.RequestedAmount - fee))
+                    .Select(p => new Payment(p.StreamerId, p.Currency, p.RequestedAmount - _currencyService.CalculateFee(p.Currency, p.RequestedAmount)))
                     .Where(p => p.ActualAmount > 0)
                     .OrderBy(p => p.ActualAmount)
                     .ToList();
 
-                var paid = new List<Payment>();
                 foreach (var payment in eligible)
                 {
-                    if (balances[currency] < payment.ActualAmount) continue;
-                    balances[currency] -= payment.ActualAmount;
-                    paid.Add(payment);
+                    if (balances.DecreaseAmount(payment.ActualAmount))
+                    {
+                        paidPayments.Add(payment);
+                    }
                 }
+            });
 
-                if (paid.Count > 0) paidByCurrency[currency] = paid;
-            }
-
-            return (balances, paidByCurrency);
+            return (accountBalances.Values.ToList(), paidPayments);
         }
     }
 
-
     public static class PaymentFormatter
     {
-        public static string Format(Dictionary<string, int> balances, Dictionary<string, List<Payment>> paidByCurrency)
+        public static string Format(List<AccountBalance> balances, ConcurrentBag<Payment> paidByCurrency)
         {
-            var sortedCurrencies = balances.Keys.OrderBy(c => c, StringComparer.Ordinal).ToList();
+            var sortedAsCurrencies = balances.OrderBy(c => c.Currency, StringComparer.Ordinal).ToList();
 
-            var balancePart = string.Join("|", sortedCurrencies.Select(c => $"{c}:{balances[c]}"));
+            var balancePart = string.Join("|", sortedAsCurrencies.Select(c => $"{c.Currency}:{c.CurrentAmount}"));
 
             var paymentItems = new List<string>();
-            foreach (var currency in sortedCurrencies)
+            foreach (var balance in sortedAsCurrencies)
             {
-                if (!paidByCurrency.TryGetValue(currency, out var paid)) continue;
-                foreach (var p in paid)
+                foreach (var p in paidByCurrency.OrderBy(q => q.ActualAmount).Where(c => c.Currency == balance.Currency))
                 {
                     paymentItems.Add($"{p.StreamerId}:{p.Currency}:{p.ActualAmount}");
                 }
@@ -140,20 +149,45 @@ internal class Program
     }
 
 
-
-    public static class Currencies
+    public interface ICurrencyService
     {
-        private static readonly Dictionary<string, Currency> _supported =
-            new(StringComparer.Ordinal)
+        public bool IsSupported(string code);
+        int CalculateFee(string code, int requestedAmount);
+    }
+
+    public class DefaultCurrencyService : ICurrencyService
+    {
+        private static readonly Dictionary<string, Currency> _supported = new(StringComparer.Ordinal)
+        {
+            ["TRY"] = new Currency("TRY", 1),
+            ["EUR"] = new Currency("EUR", 2),
+            ["USD"] = new Currency("USD", 2),
+        };
+
+        public bool IsSupported(string code) => _supported.ContainsKey(code);
+        public int CalculateFee(string code, int requestedAmount) => _supported[code].ProcessingFee;
+    }
+
+    public class AccountBalance
+    {
+        public string Currency { get; }
+        public int CurrentAmount { get; private set; }
+
+        public AccountBalance(string currency, int initialAmount)
+        {
+            Currency = currency;
+            CurrentAmount = initialAmount;
+        }
+
+        public bool DecreaseAmount(int amount)
+        {
+            if (CurrentAmount >= amount)
             {
-                ["TRY"] = new Currency("TRY", 1),
-                ["EUR"] = new Currency("EUR", 2),
-                ["USD"] = new Currency("USD", 2),
-            };
-
-        public static bool IsSupported(string code) => _supported.ContainsKey(code);
-
-        public static Currency Get(string code) => _supported[code];
+                CurrentAmount -= amount;
+                return true;
+            }
+            return false;
+        }
     }
 
     public sealed record Currency(string Code, int ProcessingFee);

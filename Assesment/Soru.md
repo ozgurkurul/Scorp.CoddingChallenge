@@ -40,3 +40,4 @@ Fonksiyon, girdi olarak mevcut bakiyeyi ve işlenecek ödeme taleplerini alır. 
 * **Çıktı:** `"EUR:190|TRY:726|USD:158&streamer2:EUR:110|streamer5:TRY:374|streamer7:USD:118"`
 
 [**Coding Challenge Solution**](Program.cs)
+
