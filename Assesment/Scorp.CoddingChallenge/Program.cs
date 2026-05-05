@@ -1,7 +1,9 @@
 ﻿using System.Collections.Concurrent;
 using System.Text;
 
-internal class Program
+namespace Scorp.CoddingChallenge;
+
+public class Program
 {
     private static void Main(string[] args)
     {
@@ -30,281 +32,250 @@ internal class Program
 
         return PaymentFormatter.Format(balances, paidByCurrency);
     }
-
-    public static class PaymentParser
-    {
-        private const char SectionSeparator = '&';
-        private const char EntrySeparator = '|';
-        private const char FieldSeparator = ':';
-
-        public static (List<BalanceEntry> balances, List<PaymentRequest> payments) Parse(string input)
-        {
-            var sections = input.Split(SectionSeparator);
-            var balances = ParseBalances(sections[0]);
-            var payments = sections.Length > 1 ? ParsePayments(sections[1]) : new List<PaymentRequest>();
-            return (balances, payments);
-        }
-
-        private static List<BalanceEntry> ParseBalances(string section)
-        {
-            var result = new List<BalanceEntry>();
-            if (string.IsNullOrEmpty(section)) return result;
-
-            foreach (var entry in section.Split(EntrySeparator))
-            {
-                var parts = entry.Split(FieldSeparator);
-                result.Add(new BalanceEntry(parts[0], int.Parse(parts[1])));
-            }
-            return result;
-        }
-
-        private static List<PaymentRequest> ParsePayments(string section)
-        {
-            var result = new List<PaymentRequest>();
-            if (string.IsNullOrEmpty(section)) return result;
-
-            foreach (var entry in section.Split(EntrySeparator))
-            {
-                var parts = entry.Split(FieldSeparator);
-                result.Add(new PaymentRequest(parts[0], parts[1], int.Parse(parts[2])));
-            }
-            return result;
-        }
-    }
-
-    public class PaymentProcessor
-    {
-
-        private readonly ICurrencyService _currencyService;
-
-        public PaymentProcessor(ICurrencyService currencyService)
-        {
-            _currencyService = currencyService;
-        }
-
-        public (List<AccountBalance> balances, ConcurrentBag<Payment> paidByCurrency) Process(IEnumerable<BalanceEntry> balanceEntries, IEnumerable<PaymentRequest> paymentRequests)
-        {
-            var accountBalances = new Dictionary<string, AccountBalance>(StringComparer.Ordinal);
-            foreach (var entry in balanceEntries)
-            {
-                if (!_currencyService.IsSupported(entry.Currency)) continue;
-
-                accountBalances.TryAdd(entry.Currency, new AccountBalance(entry.Currency, entry.Amount));
-            }
-
-            var grouped = paymentRequests
-                .Where(p => _currencyService.IsSupported(p.Currency))
-                .GroupBy(p => p.Currency);
-
-            var paidPayments = new ConcurrentBag<Payment>();
-            Parallel.ForEach(grouped, new ParallelOptions() { MaxDegreeOfParallelism = Environment.ProcessorCount }, (group) =>
-            {
-                var currency = group.Key;
-                if (!accountBalances.ContainsKey(currency)) return;
-
-                if (!accountBalances.TryGetValue(currency, out var balances)) return;
-
-                var eligible = group
-                    .Select(p => new Payment(p.StreamerId, p.Currency, p.RequestedAmount - _currencyService.CalculateFee(p.Currency, p.RequestedAmount)))
-                    .Where(p => p.ActualAmount > 0)
-                    .OrderBy(p => p.ActualAmount)
-                    .ToList();
-
-                foreach (var payment in eligible)
-                {
-                    if (balances.DecreaseAmount(payment.ActualAmount))
-                    {
-                        paidPayments.Add(payment);
-                    }
-                }
-            });
-
-            return (accountBalances.Values.ToList(), paidPayments);
-        }
-    }
-
-    public static class PaymentFormatter
-    {
-        public static string Format(List<AccountBalance> balances, ConcurrentBag<Payment> paidByCurrency)
-        {
-            var sortedAsCurrencies = balances.OrderBy(c => c.Currency, StringComparer.Ordinal).ToList();
-
-            var balancePart = string.Join("|", sortedAsCurrencies.Select(c => $"{c.Currency}:{c.CurrentAmount}"));
-
-            var paymentsByCurrency = paidByCurrency
-                .GroupBy(p => p.Currency)
-                .ToDictionary(g => g.Key, g => g.OrderBy(o => o.ActualAmount).ToList());
-
-            var paymentItems = new List<string>();
-            foreach (var balance in sortedAsCurrencies)
-            {
-                if (!paymentsByCurrency.TryGetValue(balance.Currency, out var payments)) continue;
-
-                foreach (var p in payments)
-                    paymentItems.Add($"{p.StreamerId}:{p.Currency}:{p.ActualAmount}");
-            }
-
-            var paymentsPart = string.Join("|", paymentItems);
-
-            var sb = new StringBuilder();
-            sb.Append(balancePart).Append('&').Append(paymentsPart);
-            return sb.ToString();
-        }
-
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    // 1. Her currency için ortak sözleşme
-    public interface ICurrencyHandler
-    {
-        string Code { get; }
-        int CalculateFee(int requestedAmount);
-    }
-
-    // 2. Sabit fee'li currency'ler için base class (DRY)
-    public abstract class FixedFeeCurrencyHandler : ICurrencyHandler
-    {
-        public abstract string Code { get; }
-        protected abstract int FixedFee { get; }
-
-        public int CalculateFee(int requestedAmount) => FixedFee;
-    }
-
-    // 3. Concrete handler'lar
-    public class TryCurrencyHandler : FixedFeeCurrencyHandler
-    {
-        public override string Code => "TRY";
-        protected override int FixedFee => 1;
-    }
-
-    public class EurCurrencyHandler : FixedFeeCurrencyHandler
-    {
-        public override string Code => "EUR";
-        protected override int FixedFee => 2;
-    }
-
-    public class UsdCurrencyHandler : FixedFeeCurrencyHandler
-    {
-        public override string Code => "USD";
-        protected override int FixedFee => 2;
-    }
-
-    // 4. Dinamik fee'li currency için ayrı sınıf
-    public class BtcCurrencyHandler : ICurrencyHandler
-    {
-        public string Code => "BTC";
-
-        public int CalculateFee(int requestedAmount)
-        {
-            var calculated = (int)(requestedAmount * 0.01);
-            return Math.Max(calculated, 5);// Gerçek mantık: %1 fee, minimum 5
-        }
-    }
-
-
-    public interface ICurrencyService
-    {
-        public bool IsSupported(string code);
-        int CalculateFee(string code, int requestedAmount);
-    }
-    public class DefaultCurrencyService : ICurrencyService
-    {
-        private readonly Dictionary<string, ICurrencyHandler> _handlers;
-
-        public DefaultCurrencyService(IEnumerable<ICurrencyHandler> handlers)
-        {
-            _handlers = handlers.ToDictionary(h => h.Code, StringComparer.Ordinal);
-        }
-
-        public bool IsSupported(string code) => _handlers.ContainsKey(code);
-        public int CalculateFee(string code, int requestedAmount) => _handlers[code].CalculateFee(requestedAmount);
-    }
-
-
-
-
-
-
-
-    //public class DefaultCurrencyService : ICurrencyService
-    //{
-    //    private static readonly Dictionary<string, Currency> _supported = new(StringComparer.Ordinal)
-    //    {
-    //        ["TRY"] = new Currency("TRY", 1),
-    //        ["EUR"] = new Currency("EUR", 2),
-    //        ["USD"] = new Currency("USD", 2)
-    //    };
-
-    //    public bool IsSupported(string code) => _supported.ContainsKey(code);
-    //    public int CalculateFee(string code, int requestedAmount) => _supported[code].ProcessingFee;
-    //}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    public class AccountBalance
-    {
-        public string Currency { get; }
-        public int CurrentAmount { get; private set; }
-
-        public AccountBalance(string currency, int initialAmount)
-        {
-            Currency = currency;
-            CurrentAmount = initialAmount;
-        }
-
-        public bool DecreaseAmount(int amount)
-        {
-            if (CurrentAmount >= amount)
-            {
-                CurrentAmount -= amount;
-                return true;
-            }
-            return false;
-        }
-    }
-
-    public sealed record Currency(string Code, int ProcessingFee);
-
-    public sealed record BalanceEntry(string Currency, int Amount);
-
-    public sealed record PaymentRequest(string StreamerId, string Currency, int RequestedAmount);
-
-    public sealed record Payment(string StreamerId, string Currency, int ActualAmount);
 }
+
+
+public static class PaymentParser
+{
+    private const char SectionSeparator = '&';
+    private const char EntrySeparator = '|';
+    private const char FieldSeparator = ':';
+
+    public static (List<BalanceEntry> balances, List<PaymentRequest> payments) Parse(string input)
+    {
+        var sections = input.Split(SectionSeparator);
+        var balances = ParseBalances(sections[0]);
+        var payments = sections.Length > 1 ? ParsePayments(sections[1]) : new List<PaymentRequest>();
+        return (balances, payments);
+    }
+
+    private static List<BalanceEntry> ParseBalances(string section)
+    {
+        var result = new List<BalanceEntry>();
+        if (string.IsNullOrEmpty(section)) return result;
+
+        foreach (var entry in section.Split(EntrySeparator))
+        {
+            var parts = entry.Split(FieldSeparator);
+            result.Add(new BalanceEntry(parts[0], int.Parse(parts[1])));
+        }
+        return result;
+    }
+
+    private static List<PaymentRequest> ParsePayments(string section)
+    {
+        var result = new List<PaymentRequest>();
+        if (string.IsNullOrEmpty(section)) return result;
+
+        foreach (var entry in section.Split(EntrySeparator))
+        {
+            var parts = entry.Split(FieldSeparator);
+            result.Add(new PaymentRequest(parts[0], parts[1], int.Parse(parts[2])));
+        }
+        return result;
+    }
+}
+
+public class PaymentProcessor
+{
+
+    private readonly ICurrencyService _currencyService;
+
+    public PaymentProcessor(ICurrencyService currencyService)
+    {
+        _currencyService = currencyService;
+    }
+
+    public (List<AccountBalance> balances, ConcurrentBag<Payment> paidByCurrency) Process(IEnumerable<BalanceEntry> balanceEntries, IEnumerable<PaymentRequest> paymentRequests)
+    {
+        var accountBalances = new Dictionary<string, AccountBalance>(StringComparer.Ordinal);
+        foreach (var entry in balanceEntries)
+        {
+            if (!_currencyService.IsSupported(entry.Currency)) continue;
+
+            accountBalances.TryAdd(entry.Currency, new AccountBalance(entry.Currency, entry.Amount));
+        }
+
+        var grouped = paymentRequests
+            .Where(p => _currencyService.IsSupported(p.Currency))
+            .GroupBy(p => p.Currency);
+
+        var paidPayments = new ConcurrentBag<Payment>();
+        Parallel.ForEach(grouped, new ParallelOptions() { MaxDegreeOfParallelism = Environment.ProcessorCount }, (group) =>
+        {
+            var currency = group.Key;
+            if (!accountBalances.ContainsKey(currency)) return;
+
+            if (!accountBalances.TryGetValue(currency, out var balances)) return;
+
+            var eligible = group
+                .Select(p => new Payment(p.StreamerId, p.Currency, p.RequestedAmount - _currencyService.CalculateFee(p.Currency, p.RequestedAmount)))
+                .Where(p => p.ActualAmount > 0)
+                .OrderBy(p => p.ActualAmount)
+                .ToList();
+
+            foreach (var payment in eligible)
+            {
+                if (balances.DecreaseAmount(payment.ActualAmount))
+                {
+                    paidPayments.Add(payment);
+                }
+            }
+        });
+
+        return (accountBalances.Values.ToList(), paidPayments);
+    }
+}
+
+public static class PaymentFormatter
+{
+    public static string Format(List<AccountBalance> balances, ConcurrentBag<Payment> paidByCurrency)
+    {
+        var sortedAsCurrencies = balances.OrderBy(c => c.Currency, StringComparer.Ordinal).ToList();
+
+        var balancePart = string.Join("|", sortedAsCurrencies.Select(c => $"{c.Currency}:{c.CurrentAmount}"));
+
+        var paymentsByCurrency = paidByCurrency
+            .GroupBy(p => p.Currency)
+            .ToDictionary(g => g.Key, g => g.OrderBy(o => o.ActualAmount).ToList());
+
+        var paymentItems = new List<string>();
+        foreach (var balance in sortedAsCurrencies)
+        {
+            if (!paymentsByCurrency.TryGetValue(balance.Currency, out var payments)) continue;
+
+            foreach (var p in payments)
+                paymentItems.Add($"{p.StreamerId}:{p.Currency}:{p.ActualAmount}");
+        }
+
+        var paymentsPart = string.Join("|", paymentItems);
+
+        var sb = new StringBuilder();
+        sb.Append(balancePart).Append('&').Append(paymentsPart);
+        return sb.ToString();
+    }
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// 1. Her currency için ortak sözleşme
+public interface ICurrencyHandler
+{
+    string Code { get; }
+    int CalculateFee(int requestedAmount);
+}
+
+// 2. Sabit fee'li currency'ler için base class (DRY)
+public abstract class FixedFeeCurrencyHandler : ICurrencyHandler
+{
+    public abstract string Code { get; }
+    protected abstract int FixedFee { get; }
+
+    public int CalculateFee(int requestedAmount) => FixedFee;
+}
+
+// 3. Concrete handler'lar
+public class TryCurrencyHandler : FixedFeeCurrencyHandler
+{
+    public override string Code => "TRY";
+    protected override int FixedFee => 1;
+}
+
+public class EurCurrencyHandler : FixedFeeCurrencyHandler
+{
+    public override string Code => "EUR";
+    protected override int FixedFee => 2;
+}
+
+public class UsdCurrencyHandler : FixedFeeCurrencyHandler
+{
+    public override string Code => "USD";
+    protected override int FixedFee => 2;
+}
+
+// 4. Dinamik fee'li currency için ayrı sınıf
+public class BtcCurrencyHandler : ICurrencyHandler
+{
+    public string Code => "BTC";
+
+    public int CalculateFee(int requestedAmount)
+    {
+        var calculated = (int)(requestedAmount * 0.01);
+        return Math.Max(calculated, 5);// Gerçek mantık: %1 fee, minimum 5
+    }
+}
+
+
+public interface ICurrencyService
+{
+    public bool IsSupported(string code);
+    int CalculateFee(string code, int requestedAmount);
+}
+public class DefaultCurrencyService : ICurrencyService
+{
+    private readonly Dictionary<string, ICurrencyHandler> _handlers;
+
+    public DefaultCurrencyService(IEnumerable<ICurrencyHandler> handlers)
+    {
+        _handlers = handlers.ToDictionary(h => h.Code, StringComparer.Ordinal);
+    }
+
+    public bool IsSupported(string code) => _handlers.ContainsKey(code);
+    public int CalculateFee(string code, int requestedAmount) => _handlers[code].CalculateFee(requestedAmount);
+}
+
+//public class DefaultCurrencyService : ICurrencyService
+//{
+//    private static readonly Dictionary<string, Currency> _supported = new(StringComparer.Ordinal)
+//    {
+//        ["TRY"] = new Currency("TRY", 1),
+//        ["EUR"] = new Currency("EUR", 2),
+//        ["USD"] = new Currency("USD", 2)
+//    };
+
+//    public bool IsSupported(string code) => _supported.ContainsKey(code);
+//    public int CalculateFee(string code, int requestedAmount) => _supported[code].ProcessingFee;
+//}
+
+
+public class AccountBalance
+{
+    public string Currency { get; }
+    public int CurrentAmount { get; private set; }
+
+    public AccountBalance(string currency, int initialAmount)
+    {
+        Currency = currency;
+        CurrentAmount = initialAmount;
+    }
+
+    public bool DecreaseAmount(int amount)
+    {
+        if (CurrentAmount >= amount)
+        {
+            CurrentAmount -= amount;
+            return true;
+        }
+        return false;
+    }
+}
+
+public sealed record Currency(string Code, int ProcessingFee);
+
+public sealed record BalanceEntry(string Currency, int Amount);
+
+public sealed record PaymentRequest(string StreamerId, string Currency, int RequestedAmount);
+
+public sealed record Payment(string StreamerId, string Currency, int ActualAmount);

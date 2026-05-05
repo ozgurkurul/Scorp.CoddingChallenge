@@ -1,7 +1,6 @@
-﻿using Xunit;
-using static Program;
+﻿using static Scorp.CoddingChallenge.Program;
 
-namespace Scorp.CoddingChallenge
+namespace Scorp.CoddingChallenge.Tests
 {
     public class AccountBalanceTests
     {
